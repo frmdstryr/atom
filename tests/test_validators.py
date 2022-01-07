@@ -78,7 +78,9 @@ from atom.api import (
 
 def test_no_op_validation():
     """Test the no-op handler."""
-    a = Atom()
+    class Test(Atom):
+        pass
+    a = Test()
     m = Value()
     m.set_validate_mode(Validate.NoOp, None)
 

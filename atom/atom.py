@@ -172,26 +172,52 @@ def _signal_missing_member(method: str, members: List[str], prefix: str) -> None
     )
 
 
-class AtomMeta(type):
-    """The metaclass for classes derived from Atom.
+def __newobj__(cls, *args):
+    """A compatibility pickler function.
 
-    This metaclass computes the memory layout of the members in a given
-    class so that the CAtom class can allocate exactly enough space for
-    the object data slots when it instantiates an object.
+    This function is not part of the public Atom api.
 
-    All classes deriving from Atom will be automatically slotted, which
-    will prevent the creation of an instance dictionary and also the
-    ability of an Atom to be weakly referenceable. If that behavior is
-    required, then a subclasss should declare the appropriate slots.
+    """
+    return cls.__new__(cls, *args)
+
+
+class Atom(CAtom):
+    """The base class for defining atom objects.
+
+    `Atom` objects are special Python objects which never allocate an
+    instance dictionary unless one is explicitly requested. The storage
+    for an atom is instead computed from the `Member` objects declared
+    on the class. Memory is reserved for these members with no over
+    allocation.
+
+    This restriction make atom objects a bit less flexible than normal
+    Python objects, but they are between 3x-10x more memory efficient
+    than normal objects depending on the number of attributes.
 
     """
 
-    def __new__(meta, name, bases, dct):  # noqa: C901
+    __atom_members__: ClassVar[Dict[str, Member]]
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):  # noqa: C901
+        """ This computes the memory layout of the members in a given
+        class so that the CAtom class can allocate exactly enough space for
+        the object data slots when it instantiates an object.
+
+        All classes deriving from Atom will be automatically slotted, which
+        will prevent the creation of an instance dictionary and also the
+        ability of an Atom to be weakly referenceable. If that behavior is
+        required, then a subclasss should declare the appropriate slots.
+
+        """
+        name = cls.__name__
+        dct = dict(vars(cls))
+
         # Unless the developer requests slots, they are automatically
         # turned off. This prevents the creation of instance dicts and
         # other space consuming features unless explicitly requested.
         if "__slots__" not in dct:
-            dct["__slots__"] = ()
+            cls.__slots__ = ()
 
         # Pass over the class dict once and collect the information
         # necessary to implement the various behaviors. Some objects
@@ -244,14 +270,14 @@ class AtomMeta(type):
             del dct[s.name]
 
         # Create the class object.
-        cls = type.__new__(meta, name, bases, dct)
+        #cls = type.__new__(meta, name, bases, dct)
 
         # Walk the mro of the class, excluding itself, in reverse order
         # collecting all of the members into a single dict. The reverse
         # update preserves the mro of overridden members.
         members = {}
         for base in reversed(cls.__mro__[1:-1]):
-            if base is not CAtom and issubclass(base, CAtom):
+            if base not in (Atom, CAtom) and issubclass(base, CAtom):
                 members.update(base.__atom_members__)
 
         # The set of members which live on this class as opposed to a
@@ -399,35 +425,6 @@ class AtomMeta(type):
         # Put a reference to the members dict on the class. This is used
         # by CAtom to query for the members and member count as needed.
         cls.__atom_members__ = members
-
-        return cls
-
-
-def __newobj__(cls, *args):
-    """A compatibility pickler function.
-
-    This function is not part of the public Atom api.
-
-    """
-    return cls.__new__(cls, *args)
-
-
-class Atom(CAtom, metaclass=AtomMeta):
-    """The base class for defining atom objects.
-
-    `Atom` objects are special Python objects which never allocate an
-    instance dictionary unless one is explicitly requested. The storage
-    for an atom is instead computed from the `Member` objects declared
-    on the class. Memory is reserved for these members with no over
-    allocation.
-
-    This restriction make atom objects a bit less flexible than normal
-    Python objects, but they are between 3x-10x more memory efficient
-    than normal objects depending on the number of attributes.
-
-    """
-
-    __atom_members__: ClassVar[Dict[str, Member]]
 
     @classmethod
     def members(cls) -> Dict[str, Member]:

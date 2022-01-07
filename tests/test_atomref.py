@@ -12,9 +12,13 @@ import pytest
 from atom.api import Atom, atomref
 
 
+class AnAtom(Atom):
+    pass
+
+
 def test_live_atomref():
     """Test a live atomref."""
-    atom = Atom()
+    atom = AnAtom()
     ref = atomref(atom)
 
     assert ref is atomref(atom)
@@ -29,7 +33,7 @@ def test_live_atomref():
 
 def test_dead_atomref():
     """Test a dead atomref."""
-    atom = Atom()
+    atom = AnAtom()
     ref = atomref(atom)
     del atom
     gc.collect()

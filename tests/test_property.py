@@ -221,7 +221,9 @@ def test_wrong_reset_arguments():
     assert "CAtom" in excinfo.exconly()
 
     with pytest.raises(SystemError) as excinfo:
-        prop.reset(Atom())
+        class Test(Atom):
+            pass
+        prop.reset(Test())
     assert "invalid member index" in excinfo.exconly()
 
 

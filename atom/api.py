@@ -8,7 +8,7 @@
 """Module exporting the public interface to atom.
 
 """
-from .atom import Atom, AtomMeta, MissingMemberWarning, observe, set_default
+from .atom import Atom, MissingMemberWarning, observe, set_default
 from .catom import (
     CAtom,
     DefaultValue,
