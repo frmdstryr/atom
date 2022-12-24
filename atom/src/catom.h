@@ -19,6 +19,7 @@
 #define GUARD_BIT ( static_cast<uint32_t>( 1 << 17 ) )
 #define ATOMREF_BIT ( static_cast<uint32_t>( 1 << 18 ) )
 #define FROZEN_BIT ( static_cast<uint32_t>( 1 << 19 ) )
+#define PYSLOTS_BIT ( static_cast<uint32_t>( 1 << 20 ) )
 #define catom_cast( o ) ( reinterpret_cast<atom::CAtom*>( o ) )
 
 
@@ -100,6 +101,19 @@ struct CAtom
             bitfield |= ATOMREF_BIT;
         else
             bitfield &= ~ATOMREF_BIT;
+    }
+
+    inline bool has_pyslots()
+    {
+        return ( bitfield & PYSLOTS_BIT ) != 0;
+    }
+
+    void set_has_pyslots( bool has_pyslots )
+    {
+        if( has_pyslots )
+            bitfield |= PYSLOTS_BIT;
+        else
+            bitfield &= ~PYSLOTS_BIT;
     }
 
     bool has_observers( PyObject* topic )

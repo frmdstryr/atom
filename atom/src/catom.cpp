@@ -21,15 +21,14 @@
 #include "methodwrapper.h"
 #include "packagenaming.h"
 #include "utils.h"
+#include "member.h"
 
-#define member_cast( o ) reinterpret_cast<Member*>( o )
 #define signal_cast( o ) reinterpret_cast<Signal*>( o )
 #define pymethod_cast( o ) reinterpret_cast<PyMethodObject*>( o )
 
 
 namespace atom
 {
-
 
 namespace
 {
@@ -49,6 +48,9 @@ CAtom_new( PyTypeObject* type, PyObject* args, PyObject* kwargs )
     if( !selfptr )
         return 0;
     CAtom* atom = catom_cast( selfptr.get() );
+
+    atom->set_has_pyslots(PyObject_HasAttrString(selfptr.get(), "__slots__"));
+
     uint32_t count = static_cast<uint32_t>( PyDict_Size( membersptr.get() ) );
     if( count > 0 )
     {
@@ -370,6 +372,82 @@ CAtom_sizeof( CAtom* self, PyObject* args )
     return PyLong_FromSsize_t( size );
 }
 
+PyObject*
+CAtom_getstate( CAtom* self )
+{
+    cppy::ptr stateptr = PyDict_New();
+    if ( !stateptr )
+        return PyErr_NoMemory();  // LCOV_EXCL_LINE
+
+    cppy::ptr selfptr(pyobject_cast(self), true);
+
+    // Copy __dict__ if present. Using hasattr / getattr makes it slower
+    // than the py version hence the _PyObject_GetDictPtr.
+    if ( PyObject** dict = _PyObject_GetDictPtr( selfptr.get() ) )
+    {
+        if ( PyDict_Update( stateptr.get(), dict[0] ) )
+            return 0;
+    }
+
+    // Copy __slots__ if present. This assumes copyreg._slotnames was called
+    // during AtomMeta's initialization
+    if ( self->has_pyslots() )
+    {
+        cppy::ptr typeptr = PyObject_Type(pyobject_cast(self));
+        if (!typeptr)
+            return 0;
+        cppy::ptr slotnamesptr = PyObject_GetAttrString(typeptr.get(), "__slotnames__");
+        if (!slotnamesptr.get())
+            return 0;
+        if (!PyList_Check(slotnamesptr.get()))
+            return cppy::system_error( "slot names" );
+        for ( Py_ssize_t i=0; i < PyList_GET_SIZE(slotnamesptr.get()); i++ )
+        {
+            PyObject *name = PyList_GET_ITEM(slotnamesptr.get(), i);
+            PyObject *value = PyObject_GetAttr(selfptr.get(), name);
+            if (!value || PyDict_SetItem(stateptr.get(), name, value) ) {
+                Py_XDECREF(value);
+                return  0;
+            }
+        }
+    }
+
+    cppy::ptr membersptr = selfptr.getattr("__atom_members__");
+    if ( !membersptr || !PyDict_CheckExact( membersptr.get() ) )
+        return cppy::system_error( "atom members" );
+
+    PyObject *name, *member;
+    Py_ssize_t pos = 0;
+    while ( PyDict_Next(membersptr.get(), &pos, &name, &member) ) {
+        PyObject *value = PyObject_GetAttr(selfptr.get(), name);
+        if (!value || PyDict_SetItem(stateptr.get(), name, value) ) {
+            Py_XDECREF(value);
+            return  0;
+        }
+    }
+
+    return stateptr.release();
+}
+
+PyObject*
+CAtom_setstate( CAtom* self, PyObject* args )
+{
+    if( PyTuple_GET_SIZE( args ) != 1 )
+        return cppy::type_error( "__setstate__() takes exactly one argument" );
+    PyObject* state = PyTuple_GET_ITEM( args, 0 );
+    cppy::ptr itemsptr = PyMapping_Items(state);
+    if ( !itemsptr )
+        return 0;
+    cppy::ptr selfptr(pyobject_cast(self), true);
+    for ( Py_ssize_t i = 0; i < PyMapping_Size(state); i++ ) {
+        PyObject* item = PyList_GET_ITEM(itemsptr.get(), i);
+        PyObject* key = PyTuple_GET_ITEM(item , 0);
+        PyObject* value = PyTuple_GET_ITEM(item , 1);
+        if ( PyObject_SetAttr(selfptr.get(), key, value) != 0 )
+            return 0;
+    }
+    Py_RETURN_NONE;
+}
 
 static PyMethodDef
 CAtom_methods[] = {
@@ -393,6 +471,10 @@ CAtom_methods[] = {
       "Freeze the atom to prevent further modifications to its attributes." },
     { "__sizeof__", ( PyCFunction )CAtom_sizeof, METH_NOARGS,
       "__sizeof__() -> size of object in memory, in bytes" },
+    { "__getstate__", ( PyCFunction )CAtom_getstate, METH_NOARGS,
+      "The base implementation of the pickle getstate protocol." },
+    { "__setstate__", ( PyCFunction )CAtom_setstate, METH_VARARGS,
+      "The base implementation of the pickle setstate protocol." },
     { 0 } // sentinel
 };
 
