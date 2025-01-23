@@ -129,7 +129,7 @@ handlers[] = {
     include_handler
 };
 
-const auto mask = validate_handlers(handlers, GetState::Mode::Last);
+validate_handlers(handlers, GetState::Mode::Last);
 
 }  // namespace
 
@@ -137,7 +137,7 @@ const auto mask = validate_handlers(handlers, GetState::Mode::Last);
 PyObject*
 Member::should_getstate( CAtom* atom )
 {
-    return handlers[ get_getstate_mode() & mask ]( this, atom );
+    return handlers[ get_getstate_mode() ]( this, atom );
 }
 
 }  // namespace atom

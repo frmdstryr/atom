@@ -192,7 +192,7 @@ handlers[] = {
     property_handler
 };
 
-const auto mask = validate_handlers(handlers, DelAttr::Mode::Last);
+validate_handlers(handlers, DelAttr::Mode::Last);
 
 }  // namespace
 
@@ -200,7 +200,7 @@ const auto mask = validate_handlers(handlers, DelAttr::Mode::Last);
 int
 Member::delattr( CAtom* atom )
 {
-    return handlers[ get_delattr_mode() & mask ]( this, atom );
+    return handlers[ get_delattr_mode() ]( this, atom );
 }
 
 

@@ -1000,7 +1000,7 @@ handlers[] = {
     member_method_object_old_new_handler
 };
 
-const auto mask = validate_handlers(handlers, Validate::Mode::Last);
+validate_handlers(handlers, Validate::Mode::Last);
 
 }  // namespace
 
@@ -1008,7 +1008,7 @@ const auto mask = validate_handlers(handlers, Validate::Mode::Last);
 PyObject*
 Member::validate( CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
 {
-    return handlers[ get_validate_mode() & mask ]( this, atom, oldvalue, newvalue );
+    return handlers[ get_validate_mode() ]( this, atom, oldvalue, newvalue );
 }
 
 

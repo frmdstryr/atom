@@ -225,8 +225,7 @@ constexpr uint8_t _required_handler_size(uint8_t x) {
 
 #define _handlers_size( a ) ( sizeof(a) / sizeof(a[0]) )
 #define validate_handlers( handlers, sentinel ) \
-    _handlers_size(handlers) - 1; \
     static_assert(sentinel <= _handlers_size(handlers), "Not enough handlers for all enum values"); \
-    static_assert(_required_handler_size(sentinel) == _handlers_size(handlers), "Handlers size does not match enum width") \
+    static_assert(_required_handler_size(sentinel) == _handlers_size(handlers), "Handlers size does not match enum width")
 
 }  // namespace atom

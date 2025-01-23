@@ -207,7 +207,7 @@ handlers[] = {
     no_op_handler
 };
 
-const auto mask = validate_handlers(handlers, DefaultValue::Mode::Last);
+validate_handlers(handlers, DefaultValue::Mode::Last);
 
 }  // namespace
 
@@ -215,7 +215,7 @@ const auto mask = validate_handlers(handlers, DefaultValue::Mode::Last);
 PyObject*
 Member::default_value( CAtom* atom )
 {
-    return handlers[ get_default_value_mode() & mask ]( this, atom );
+    return handlers[ get_default_value_mode() ]( this, atom );
 }
 
 

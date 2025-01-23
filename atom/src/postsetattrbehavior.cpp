@@ -112,7 +112,7 @@ handlers[] = {
     no_op_handler
 };
 
-const auto mask = validate_handlers(handlers, PostSetAttr::Mode::Last);
+validate_handlers(handlers, PostSetAttr::Mode::Last);
 
 }  // namespace
 
@@ -120,7 +120,7 @@ const auto mask = validate_handlers(handlers, PostSetAttr::Mode::Last);
 int
 Member::post_setattr( CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
 {
-    return handlers[ get_post_setattr_mode() & mask ]( this, atom, oldvalue, newvalue );
+    return handlers[ get_post_setattr_mode() ]( this, atom, oldvalue, newvalue );
 }
 
 

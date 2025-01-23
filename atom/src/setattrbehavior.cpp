@@ -383,7 +383,7 @@ handlers[] = {
     no_op_handler
 };
 
-const auto mask = validate_handlers(handlers, SetAttr::Mode::Last);
+validate_handlers(handlers, SetAttr::Mode::Last);
 
 } // namespace
 
@@ -391,7 +391,7 @@ const auto mask = validate_handlers(handlers, SetAttr::Mode::Last);
 int
 Member::setattr( CAtom* atom, PyObject* value )
 {
-    return handlers[ get_setattr_mode() & mask ]( this, atom, value );
+    return handlers[ get_setattr_mode() ]( this, atom, value );
 }
 
 

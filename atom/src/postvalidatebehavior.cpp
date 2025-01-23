@@ -103,7 +103,7 @@ handlers[] = {
     no_op_handler
 };
 
-const auto mask = validate_handlers(handlers, PostValidate::Mode::Last);
+validate_handlers(handlers, PostValidate::Mode::Last);
 
 }  // namespace
 
@@ -111,7 +111,7 @@ const auto mask = validate_handlers(handlers, PostValidate::Mode::Last);
 PyObject*
 Member::post_validate( CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
 {
-    return handlers[ get_post_validate_mode() & mask ]( this, atom, oldvalue, newvalue );
+    return handlers[ get_post_validate_mode() ]( this, atom, oldvalue, newvalue );
 }
 
 }  // namespace atom

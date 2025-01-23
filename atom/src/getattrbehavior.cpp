@@ -263,7 +263,7 @@ handlers[] = {
     no_op_handler
 };
 
-const auto mask = validate_handlers(handlers, GetAttr::Mode::Last);
+validate_handlers(handlers, GetAttr::Mode::Last);
 
 }  // namespace
 
@@ -271,7 +271,7 @@ const auto mask = validate_handlers(handlers, GetAttr::Mode::Last);
 PyObject*
 Member::getattr( CAtom* atom )
 {
-    return handlers[ get_getattr_mode() & mask ]( this, atom );
+    return handlers[ get_getattr_mode() ]( this, atom );
 }
 
 }  // namespace atom
