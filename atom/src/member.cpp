@@ -965,20 +965,14 @@ PyType_Spec Member::TypeObject_Spec = {
 PyObject*
 Member::full_validate( CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
 {
-    cppy::ptr result( cppy::incref( newvalue ) );
-    if( get_validate_mode() )
-    {
-        result = validate( atom, oldvalue, result.get() );
-        if( !result )
-            return 0;
-    }
-    if( get_post_validate_mode() )
-    {
-        result = post_validate( atom, oldvalue, result.get() );
-        if( !result )
-            return 0;
-    }
-    return result.release();
+    PyObject* result = validate( atom, oldvalue, newvalue );
+    if( !result )
+        return 0;
+    if( !get_post_validate_mode() )
+        return result;
+    PyObject* new_result = post_validate( atom, oldvalue, result );
+    Py_DECREF(result);
+    return new_result;
 }
 
 

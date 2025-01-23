@@ -55,12 +55,25 @@ struct CAtom
         return cppy::xincref( slots[ index ] );
     }
 
+    PyObject* get_slot_borrowed( uint32_t index )
+    {
+        return slots[ index ];
+    }
+
     void set_slot( uint32_t index, PyObject* object )
     {
         PyObject* old = slots[ index ];
         slots[ index ] = object;
         Py_XINCREF( object );
         Py_XDECREF( old );
+    }
+
+    // Steals ownership of object. Caller must take ownership of returned value
+    PyObject* exchange_slot( uint32_t index, PyObject* object )
+    {
+        PyObject* old = slots[ index ];
+        slots[ index ] = object;
+        return old;
     }
 
     bool get_notifications_enabled()

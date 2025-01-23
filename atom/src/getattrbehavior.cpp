@@ -89,14 +89,10 @@ slot_handler( Member* member, CAtom* atom )
 {
     if( member->index >= atom->get_slot_count() )
         return cppy::attribute_error( pyobject_cast( atom ), (char const *)PyUnicode_AsUTF8( member->name ) );
-    cppy::ptr value( atom->get_slot( member->index ) );
-    if( value )
-    {
-        if( member->get_post_getattr_mode() )
-            value = member->post_getattr( atom, value.get() );
-        return value.release();
-    }
-    value = member->default_value( atom );
+    if( PyObject* value = atom->get_slot_borrowed( member->index ))
+        return member->post_getattr( atom, value );
+
+    cppy::ptr value( member->default_value( atom ) );
     if( !value )
         return 0;
     value = member->full_validate( atom, Py_None, value.get() );

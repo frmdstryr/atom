@@ -110,34 +110,30 @@ slot_handler( Member* member, CAtom* atom, PyObject* value )
         PyErr_SetString( PyExc_AttributeError, "can't set attribute of frozen Atom" );
         return -1;
     }
-    cppy::ptr oldptr( atom->get_slot( member->index ) );
-    cppy::ptr newptr( cppy::incref( value ) );
-    if( oldptr == newptr )
+    PyObject* valid_old = atom->get_slot_borrowed( member->index );
+    if ( valid_old == value )
         return 0;
-    bool valid_old = oldptr.get() != 0;
-    if( !valid_old )
-        oldptr.set( cppy::incref( Py_None ) );
-    newptr = member->full_validate( atom, oldptr.get(), newptr.get() );
-    if( !newptr )
+
+    PyObject* oldvalue = valid_old ? valid_old : Py_None;
+    PyObject* newvalue = member->full_validate( atom, oldvalue, value );
+    if( !newvalue )
         return -1;
-    atom->set_slot( member->index, newptr.get() );
-    if( member->get_post_setattr_mode() )
-    {
-        if( member->post_setattr( atom, oldptr.get(), newptr.get() ) < 0 )
-            return -1;
-    }
-    if( ( !valid_old || oldptr != newptr ) && atom->get_notifications_enabled() )
+    // Take ownership of newvalue, and discard value_old at scope exit if there was one
+    cppy::ptr discard( atom->exchange_slot( member->index, newvalue ) );
+    if( member->post_setattr( atom, oldvalue, newvalue ) < 0 )
+        return -1;
+    if( ( !valid_old || oldvalue != newvalue ) && atom->get_notifications_enabled() )
     {
         cppy::ptr argsptr;
         if( member->has_observers(ChangeType::Update | ChangeType::Create) )
         {
 
-            if( valid_old && utils::safe_richcompare( oldptr, newptr, Py_EQ ) )
+            if( valid_old && utils::safe_richcompare( oldvalue, newvalue, Py_EQ ) )
                 return 0;
             if( valid_old )
-                argsptr = updated_args( atom, member, oldptr.get(), newptr.get() );
+                argsptr = updated_args( atom, member, oldvalue, newvalue );
             else
-                argsptr = created_args( atom, member, newptr.get() );
+                argsptr = created_args( atom, member, newvalue );
             if( !argsptr )
                 return -1;
             ChangeType::Type change_type = ( valid_old ) ? ChangeType::Update: ChangeType::Create;
@@ -149,17 +145,17 @@ slot_handler( Member* member, CAtom* atom, PyObject* value )
             ChangeType::Type change_type = ChangeType::Any;
             if( !argsptr )
             {
-                if( valid_old && utils::safe_richcompare( oldptr, newptr, Py_EQ ) )
+                if( valid_old && utils::safe_richcompare( oldvalue, newvalue, Py_EQ ) )
                     return 0;
                 if( valid_old )
                 {
                     change_type = ChangeType::Update;
-                    argsptr = updated_args( atom, member, oldptr.get(), newptr.get() );
+                    argsptr = updated_args( atom, member, oldvalue, newvalue );
                 }
                 else
                 {
                     change_type = ChangeType::Create;
-                    argsptr = created_args( atom, member, newptr.get() );
+                    argsptr = created_args( atom, member, newvalue );
                 }
                 if( !argsptr )
                     return -1;
