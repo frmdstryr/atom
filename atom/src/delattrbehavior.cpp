@@ -77,10 +77,9 @@ slot_handler( Member* member, CAtom* atom )
         PyErr_SetString( PyExc_AttributeError, "can't delete attribute of frozen Atom" );
         return -1;
     }
-    cppy::ptr valueptr( atom->get_slot( member->index ) );
-    if( !valueptr )
+    if( !atom->get_slot_borrowed( member->index ) )
         return 0;
-    atom->set_slot( member->index, 0 );
+    cppy::ptr valueptr( atom->exchange_slot( member->index, 0 ) );
     if( atom->get_notifications_enabled() )
     {
         cppy::ptr argsptr;
