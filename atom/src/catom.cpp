@@ -588,8 +588,7 @@ CAtom::observe( PyObject* topic, PyObject* callback, uint8_t change_types )
         return false;
     if( !observers )
         observers = new ObserverPool();
-    observers->add( topicptr, callbackptr, change_types );
-    return true;
+    return observers->add( topicptr, callbackptr, change_types );
 }
 
 
@@ -600,8 +599,7 @@ CAtom::unobserve( PyObject* topic, PyObject* callback )
         return true;
     cppy::ptr topicptr( cppy::incref( topic ) );
     cppy::ptr callbackptr( cppy::incref( callback ) );
-    observers->remove( topicptr, callbackptr );
-    return true;
+    return observers->remove( topicptr, callbackptr );
 }
 
 
@@ -611,8 +609,7 @@ CAtom::unobserve( PyObject* topic )
     if( !observers )
         return true;
     cppy::ptr topicptr( cppy::incref( topic ) );
-    observers->remove( topicptr );
-    return true;
+    return observers->remove( topicptr );
 }
 
 

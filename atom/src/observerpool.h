@@ -42,7 +42,7 @@ class ObserverPool
 
 public:
 
-    ObserverPool() : m_modify_guard( 0 ) {}
+    ObserverPool() : m_modify_guard( 0 ), m_items(PyDict_New()) {}
 
     ~ObserverPool() {}
 
@@ -55,11 +55,11 @@ public:
 
     bool has_observer( cppy::ptr& topic, cppy::ptr& observer, uint8_t change_types );
 
-    void add( cppy::ptr& topic, cppy::ptr& observer, uint8_t member_changes );
+    bool add( cppy::ptr& topic, cppy::ptr& observer, uint8_t member_changes );
 
-    void remove( cppy::ptr& topic, cppy::ptr& observer );
+    bool remove( cppy::ptr& topic, cppy::ptr& observer );
 
-    void remove( cppy::ptr& topic );
+    bool remove( cppy::ptr& topic );
 
     bool notify( cppy::ptr& topic, cppy::ptr& args, cppy::ptr& kwargs )
     {
@@ -71,8 +71,8 @@ public:
     Py_ssize_t py_sizeof()
     {
         Py_ssize_t size = sizeof( ModifyGuard<ObserverPool>* );
-        size += sizeof( std::vector<Topic> ) + sizeof( Topic ) * m_topics.capacity();
-        size += sizeof( std::vector<Observer> ) + sizeof( Observer ) * m_observers.capacity();
+        //size += sizeof( std::vector<Topic> ) + sizeof( Topic ) * m_topics.capacity();
+        //size += sizeof( std::vector<Observer> ) + sizeof( Observer ) * m_observers.capacity();
         return size;
     };
 
@@ -80,20 +80,14 @@ public:
 
     void py_clear()
     {
-        m_topics.clear();
-        // Clearing the vector may cause arbitrary side effects on item
-        // decref, including calls into methods which mutate the vector.
-        // To avoid segfaults, first make the vector empty, then let the
-        // destructors run for the old items.
-        std::vector<Observer> empty;
-        m_observers.swap( empty );
+        Py_CLEAR(m_items);
     }
 
 private:
 
     ModifyGuard<ObserverPool>* m_modify_guard;
-    std::vector<Topic> m_topics;
-    std::vector<Observer> m_observers;
+    // dict[topic, dict[observer, change_types]]
+    PyObject* m_items;
     ObserverPool(const ObserverPool& other);
     ObserverPool& operator=(const ObserverPool&);
 

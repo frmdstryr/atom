@@ -31,26 +31,9 @@ enum Type {
 
 } // end ChangeType
 
-
-struct Observer
+inline bool matches_change(PyObject* observer_info, uint8_t change_types )
 {
-
-    Observer( cppy::ptr& observer, uint8_t change_types ) : m_observer( observer ), m_change_types( change_types ) {}
-    ~Observer() {}
-
-    bool match(const cppy::ptr& observer ) const
-    {
-        return m_observer == observer || utils::safe_richcompare( m_observer, observer, Py_EQ );
-    }
-
-    inline bool enabled( uint8_t change_types ) const
-    {
-        return (m_change_types & change_types) != 0;
-    }
-
-    cppy::ptr m_observer;
-    uint8_t m_change_types;
-
-};
+    return (PyLong_AsLong( observer_info ) & change_types) != 0;
+}
 
 } // namespace atom

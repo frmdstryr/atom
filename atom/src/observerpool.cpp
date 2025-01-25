@@ -57,188 +57,147 @@ struct RemoveTopicTask : ModifyTask
 bool
 ObserverPool::has_topic( cppy::ptr& topic )
 {
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
+    if ( !m_items )
+        return false;
+    int r = PyDict_Contains( m_items, topic.get() );
+    if (r < 0)
     {
-        if( topic_it->match( topic ) )
-            return true;
+        if ( PyErr_Occurred() )
+            PyErr_Clear();
+        return false;
     }
-    return false;
+    return r;
 }
 
 
 bool
 ObserverPool::has_observer( cppy::ptr& topic, cppy::ptr& observer, uint8_t change_types )
 {
-    uint32_t obs_offset = 0;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
-    {
-        if( topic_it->match( topic ) )
-        {
-            std::vector<Observer>::iterator obs_it;
-            std::vector<Observer>::iterator obs_end;
-            obs_it = m_observers.begin() + obs_offset;
-            obs_end = obs_it + topic_it->m_count;
-            for( ; obs_it != obs_end; ++obs_it )
-            {
-                if( obs_it->match( observer ) && obs_it->enabled( change_types ) )
-                    return true;
-            }
-            return false;
-        }
-        obs_offset += topic_it->m_count;
-    }
-    return false;
+    if ( !m_items )
+        return false;
+    PyObject* observer_map = PyDict_GetItem( m_items, topic.get() );
+    if ( !observer_map )
+        return false;
+    PyObject* info = PyDict_GetItem( observer_map, observer.get() );
+    if ( !info )
+        return false;
+    return matches_change(info, change_types);
 }
 
 
-void
+bool
 ObserverPool::add( cppy::ptr& topic, cppy::ptr& observer, uint8_t change_types )
 {
+    if ( !m_items )
+        return false;
     if( m_modify_guard )
     {
         ModifyTask* task = new AddTask( *this, topic, observer, change_types );
         m_modify_guard->add_task( task );
-        return;
+        return true;
     }
-    uint32_t obs_offset = 0;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
+    PyObject* observer_map = PyDict_GetItem( m_items, topic.get() );
+    if ( !observer_map )
     {
-        if( topic_it->match( topic ) )
-        {
-            std::vector<Observer>::iterator obs_it;
-            std::vector<Observer>::iterator obs_end;
-            std::vector<Observer>::iterator obs_free;
-            obs_it = m_observers.begin() + obs_offset;
-            obs_end = obs_it + topic_it->m_count;
-            obs_free = obs_end;
-            for( ; obs_it != obs_end; ++obs_it )
-            {
-                if( obs_it->match( observer ) )
-                {
-                    obs_it->m_change_types = change_types;
-                    return;
-                }
-                if( !obs_it->m_observer.is_truthy() )
-                    obs_free = obs_it;
-            }
-            if( obs_free == obs_end )
-            {
-                m_observers.insert( obs_end, Observer( observer, change_types ) );
-                ++topic_it->m_count;
-            }
-            else
-                *obs_free = Observer( observer, change_types );
-            return;
-        }
-        obs_offset += topic_it->m_count;
+        cppy::ptr new_map( PyDict_New() );
+        if ( !new_map )
+            return false;
+        if ( PyDict_SetItem( m_items, topic.get(), new_map.get() ) < 0 )
+            return false;
+        observer_map = new_map.release();
     }
-    m_topics.push_back( Topic( topic, 1 ) );
-    m_observers.push_back( Observer(observer, change_types) );
+
+    PyObject* info = PyDict_GetItem( observer_map, observer.get() );
+    if ( !info || PyLong_AsLong( info ) != change_types )
+    {
+        cppy::ptr new_info( PyLong_FromLong( change_types ) );
+        if ( !new_info )
+            return false;
+        if ( PyDict_SetItem( observer_map, observer.get(), new_info.get() ) < 0 )
+            return false;
+    }
+    return true;
 }
 
 
-void
+bool
 ObserverPool::remove( cppy::ptr& topic, cppy::ptr& observer )
 {
+    if ( !m_items )
+        return false;
     if( m_modify_guard )
     {
         ModifyTask* task = new RemoveTask( *this, topic, observer );
         m_modify_guard->add_task( task );
-        return;
+        return true;
     }
-    uint32_t obs_offset = 0;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
+
+    PyObject* observer_map = PyDict_GetItem( m_items, topic.get() );
+    if ( !observer_map )
+        return true;
+    if ( PyDict_DelItem( observer_map, observer.get() ) < 0 )
     {
-        if( topic_it->match( topic ) )
-        {
-            std::vector<Observer>::iterator obs_it;
-            std::vector<Observer>::iterator obs_end;
-            obs_it = m_observers.begin() + obs_offset;
-            obs_end = obs_it + topic_it->m_count;
-            for( ; obs_it != obs_end; ++obs_it )
-            {
-                if( obs_it->match( observer ) )
-                {
-                    m_observers.erase( obs_it );
-                    if( ( --topic_it->m_count ) == 0 )
-                        m_topics.erase( topic_it );
-                    return;
-                }
-            }
-            return;
-        }
-        obs_offset += topic_it->m_count;
+        if ( !PyErr_ExceptionMatches( PyExc_KeyError ) )
+            return false;
+        PyErr_Clear();
     }
+    return true;
 }
 
 
-void
+bool
 ObserverPool::remove( cppy::ptr& topic )
 {
+    if ( !m_items )
+        return false;
     if( m_modify_guard )
     {
         ModifyTask* task = new RemoveTopicTask( *this, topic );
         m_modify_guard->add_task( task );
-        return;
+        return true;
     }
-    uint32_t obs_offset = 0;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
+
+    if ( PyDict_DelItem( m_items, topic.get() ) < 0 )
     {
-        if( topic_it->match( topic ) )
-        {
-            m_observers.erase(
-                m_observers.begin() + obs_offset,
-                m_observers.begin() + (obs_offset + topic_it->m_count)
-            );
-            m_topics.erase( topic_it );
-            return;
-        }
-        obs_offset += topic_it->m_count;
+        if ( !PyErr_ExceptionMatches( PyExc_KeyError ) )
+            return false;
+        PyErr_Clear();
     }
+    return true;
 }
 
 
 bool
 ObserverPool::notify( cppy::ptr& topic, cppy::ptr& args, cppy::ptr& kwargs, uint8_t change_types )
 {
+    if ( !m_items )
+        return false;
     ModifyGuard<ObserverPool> guard( *this );
-    uint32_t obs_offset = 0;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
+
+    PyObject* observer_map = PyDict_GetItem( m_items, topic.get() );
+    if ( !observer_map )
+        return false;
+
+    cppy::ptr iter( PyObject_GetIter( observer_map ) );
+    if ( !iter )
+        return false;
+    cppy::ptr observer;
+    while ( ( observer = iter.next() ) )
     {
-        if( topic_it->match( topic ) )
+        if ( !observer.is_truthy() )
         {
-            std::vector<Observer>::iterator obs_it;
-            std::vector<Observer>::iterator obs_end;
-            obs_it = m_observers.begin() + obs_offset;
-            obs_end = obs_it + topic_it->m_count;
-            for( ; obs_it != obs_end; ++obs_it )
-            {
-                if( obs_it->m_observer.is_truthy() )
-                {
-                    if( obs_it->enabled( change_types ) && !obs_it->m_observer.call( args, kwargs ) )
-                        return false;
-                }
-                else
-                {
-                    ModifyTask* task = new RemoveTask( *this, topic, obs_it->m_observer );
-                    m_modify_guard->add_task( task );
-                }
-            }
-            return true;
+            ModifyTask* task = new RemoveTask( *this, topic, observer );
+            m_modify_guard->add_task( task );
+            continue;
         }
-        obs_offset += topic_it->m_count;
+
+        PyObject* info = PyDict_GetItem( observer_map, observer.get() );
+        if ( matches_change(info, change_types) )
+        {
+            cppy::ptr ok( observer.call( args, kwargs ) );
+            if ( !ok )
+                return false;
+        }
     }
     return true;
 }
@@ -247,23 +206,7 @@ ObserverPool::notify( cppy::ptr& topic, cppy::ptr& args, cppy::ptr& kwargs, uint
 int
 ObserverPool::py_traverse( visitproc visit, void* arg )
 {
-    int vret;
-    std::vector<Topic>::iterator topic_it;
-    std::vector<Topic>::iterator topic_end = m_topics.end();
-    for( topic_it = m_topics.begin(); topic_it != topic_end; ++topic_it )
-    {
-        vret = visit( topic_it->m_topic.get(), arg );
-        if( vret )
-            return vret;
-    }
-    std::vector<Observer>::iterator obs_it;
-    std::vector<Observer>::iterator obs_end = m_observers.end();
-    for( obs_it = m_observers.begin(); obs_it != obs_end; ++obs_it )
-    {
-        vret = visit( obs_it->m_observer.get(), arg );
-        if( vret )
-            return vret;
-    }
+    Py_VISIT( m_items );
     return 0;
 }
 

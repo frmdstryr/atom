@@ -83,6 +83,9 @@ def test_manual_static_observers(static_atom):
         def __eq__(self, other):
             raise ValueError()
 
+        def __hash__(self):
+            return hash(self.__call__)
+
         def __call__(self, change):
             change["object"].changes.append(change["name"])
 
@@ -551,6 +554,7 @@ def test_modifying_dynamic_observers_in_callback():
 
         def __init__(self, active):
             self.active = active
+            self.calls = 0
 
         def __bool__(self):
             return self.active
@@ -558,7 +562,7 @@ def test_modifying_dynamic_observers_in_callback():
         __nonzero__ = __bool__
 
         def __call__(self, change):
-            pass
+            self.calls += 1
 
     class ChangingAtom(Atom):
         val = Int()
@@ -593,9 +597,15 @@ def test_modifying_dynamic_observers_in_callback():
     assert ca.counter2 == 0
     assert ca.has_observer("val", ca.react2)
     assert not ca.has_observer("val", ca.react1)
-    assert not ca.has_observer("val", invalid_obs)
+    assert invalid_obs.calls == 1
 
     ca.val += 1
+
+    # When this gets removed depends on the order notifications fire
+    # It is should definitely be gone after the second update
+    assert not ca.has_observer("val", invalid_obs)
+    assert invalid_obs.calls == 1
+
     assert ca.counter2 == 1
     # Ensure the modification take place after notification dispatch is
     # complete
