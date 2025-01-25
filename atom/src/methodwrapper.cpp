@@ -83,6 +83,11 @@ MethodWrapper__bool__( MethodWrapper* self )
     return 0;
 }
 
+Py_hash_t
+MethodWrapper__hash__( MethodWrapper* self )
+{
+    return self->im_hash;
+}
 
 static PyType_Slot MethodWrapper_Type_slots[] = {
     { Py_tp_dealloc, void_cast( MethodWrapper_dealloc ) },          /* tp_dealloc */
@@ -91,6 +96,7 @@ static PyType_Slot MethodWrapper_Type_slots[] = {
     { Py_tp_alloc, void_cast( PyType_GenericAlloc ) },              /* tp_alloc */
     { Py_tp_free, void_cast( PyObject_Del ) },                      /* tp_free */
     { Py_nb_bool, void_cast( MethodWrapper__bool__ ) },             /* nb_bool */
+    { Py_tp_hash, void_cast( MethodWrapper__hash__ ) },             /* tp_hash */
     { 0, 0 },
 };
 
@@ -190,6 +196,11 @@ AtomMethodWrapper__bool__( AtomMethodWrapper* self )
     return 0;
 }
 
+Py_hash_t
+AtomMethodWrapper__hash__( AtomMethodWrapper* self )
+{
+    return self->im_hash;
+}
 
 static PyType_Slot AtomMethodWrapper_Type_slots[] = {
     { Py_tp_dealloc, void_cast( AtomMethodWrapper_dealloc ) },          /* tp_dealloc */
@@ -198,6 +209,7 @@ static PyType_Slot AtomMethodWrapper_Type_slots[] = {
     { Py_tp_alloc, void_cast( PyType_GenericAlloc ) },                  /* tp_alloc */
     { Py_tp_free, void_cast( PyObject_Del ) },                          /* tp_free */
     { Py_nb_bool, void_cast( AtomMethodWrapper__bool__ ) },             /* nb_bool */
+    { Py_tp_hash, void_cast( AtomMethodWrapper__hash__ ) },             /* tp_hash */
     { 0, 0 },
 };
 
@@ -248,6 +260,7 @@ MethodWrapper::New( PyObject* method )
             return 0;
         AtomMethodWrapper* wrapper = reinterpret_cast<AtomMethodWrapper*>( pywrapper.get() );
         wrapper->im_func = cppy::incref( PyMethod_GET_FUNCTION( method ) );
+        wrapper->im_hash = PyObject_Hash( method );
         // placement new since Python malloc'd and zero'd the struct
         new( &wrapper->pointer ) CAtomPointer( catom_cast( PyMethod_GET_SELF( method ) ) );
     }
@@ -262,6 +275,7 @@ MethodWrapper::New( PyObject* method )
         MethodWrapper* wrapper = reinterpret_cast<MethodWrapper*>( pywrapper.get() );
         wrapper->im_func = cppy::incref( PyMethod_GET_FUNCTION( method ) );
         wrapper->im_selfref = wr.release();
+        wrapper->im_hash = PyObject_Hash( method );
     }
     return pywrapper.release();
 }

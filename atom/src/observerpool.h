@@ -22,19 +22,6 @@ namespace atom
 class ObserverPool
 {
 
-    struct Topic
-    {
-        Topic( cppy::ptr& topic ) : m_topic( topic ), m_count( 0 ) {}
-        Topic( cppy::ptr& topic, uint32_t count ) : m_topic( topic ), m_count( count ) {}
-        ~Topic() {}
-        bool match( cppy::ptr& topic )
-        {
-            return m_topic == topic || utils::safe_richcompare( m_topic, topic, Py_EQ );
-        }
-        cppy::ptr m_topic;
-        uint32_t m_count;
-    };
-
     // ModifyGuard template interface
     friend class ModifyGuard<ObserverPool>;
     ModifyGuard<ObserverPool>* get_modify_guard() { return m_modify_guard; }
@@ -42,58 +29,44 @@ class ObserverPool
 
 public:
 
-    ObserverPool() : m_modify_guard( 0 ) {}
+    ObserverPool() : m_modify_guard( 0 ), m_items(PyDict_New()) {}
 
-    ~ObserverPool() {}
+    ~ObserverPool() {
+        Py_CLEAR(m_items);
+    }
 
-    bool has_topic( cppy::ptr& topic );
+    bool has_topic( PyObject* topic ) const;
 
-    bool has_observer( cppy::ptr& topic, cppy::ptr& observer )
+    bool has_observer( PyObject* topic, PyObject* observer ) const
     {
         return has_observer( topic, observer, ChangeType::Any );
     }
 
-    bool has_observer( cppy::ptr& topic, cppy::ptr& observer, uint8_t change_types );
+    bool has_observer( PyObject* topic, PyObject* observer, uint8_t change_types ) const;
 
-    void add( cppy::ptr& topic, cppy::ptr& observer, uint8_t member_changes );
+    bool add( PyObject* topic, PyObject* observer, uint8_t member_changes );
 
-    void remove( cppy::ptr& topic, cppy::ptr& observer );
+    bool remove( PyObject* topic, PyObject* observer );
 
-    void remove( cppy::ptr& topic );
+    bool remove( PyObject* topic );
 
-    bool notify( cppy::ptr& topic, cppy::ptr& args, cppy::ptr& kwargs )
+    void clear();
+
+    bool notify( PyObject* topic, PyObject* args, PyObject* kwargs )
     {
         return notify( topic, args, kwargs, ChangeType::Any );
     }
 
-    bool notify( cppy::ptr& topic, cppy::ptr& args, cppy::ptr& kwargs, uint8_t change_types );
+    bool notify( PyObject* topic, PyObject* args, PyObject* kwargs, uint8_t change_types );
 
-    Py_ssize_t py_sizeof()
-    {
-        Py_ssize_t size = sizeof( ModifyGuard<ObserverPool>* );
-        size += sizeof( std::vector<Topic> ) + sizeof( Topic ) * m_topics.capacity();
-        size += sizeof( std::vector<Observer> ) + sizeof( Observer ) * m_observers.capacity();
-        return size;
-    };
+    Py_ssize_t py_sizeof();
 
     int py_traverse( visitproc visit, void* arg );
-
-    void py_clear()
-    {
-        m_topics.clear();
-        // Clearing the vector may cause arbitrary side effects on item
-        // decref, including calls into methods which mutate the vector.
-        // To avoid segfaults, first make the vector empty, then let the
-        // destructors run for the old items.
-        std::vector<Observer> empty;
-        m_observers.swap( empty );
-    }
 
 private:
 
     ModifyGuard<ObserverPool>* m_modify_guard;
-    std::vector<Topic> m_topics;
-    std::vector<Observer> m_observers;
+    PyObject* m_items; // dict[topic, dict[observer, change_types]]
     ObserverPool(const ObserverPool& other);
     ObserverPool& operator=(const ObserverPool&);
 

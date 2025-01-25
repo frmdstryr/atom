@@ -59,8 +59,7 @@ Member_clear( Member* self )
     Py_CLEAR( self->default_value_context );
     Py_CLEAR( self->post_validate_context );
     Py_CLEAR( self->getstate_context );
-    if( self->static_observers )
-        self->static_observers->clear();
+    Py_CLEAR( self->static_observers );
 }
 
 
@@ -78,13 +77,7 @@ Member_traverse( Member* self, visitproc visit, void* arg )
     Py_VISIT( self->default_value_context );
     Py_VISIT( self->post_validate_context );
     Py_VISIT( self->getstate_context );
-    if( self->static_observers )
-    {
-        std::vector<Observer>::iterator it;
-        std::vector<Observer>::iterator end = self->static_observers->end();
-        for( it = self->static_observers->begin(); it != end; ++it )
-            Py_VISIT( it->m_observer.get() );
-    }
+    Py_VISIT( self->static_observers );
 #if PY_VERSION_HEX >= 0x03090000
     // This was not needed before Python 3.9 (Python issue 35810 and 40217)
     Py_VISIT(Py_TYPE(self));
@@ -98,8 +91,6 @@ Member_dealloc( Member* self )
 {
     PyObject_GC_UnTrack( self );
     Member_clear( self );
-    delete self->static_observers;
-    self->static_observers = 0;
     Py_TYPE(self)->tp_free( pyobject_cast( self ) );
 }
 
@@ -149,15 +140,18 @@ Member_copy_static_observers( Member* self, PyObject* other )
     if( self == member )
         Py_RETURN_NONE;
     if( !member->static_observers )
+        Py_CLEAR( self->static_observers );
+    else if( !self->static_observers )
     {
-        delete self->static_observers;
-        self->static_observers = 0;
+        self->static_observers = PyDict_Copy( member->static_observers );
+        if ( !self->static_observers)
+            return 0;
     }
     else
     {
-        if( !self->static_observers )
-            self->static_observers = new std::vector<Observer>();
-        *self->static_observers = *member->static_observers;
+        PyDict_Clear( self->static_observers );
+        if ( PyDict_Update( self->static_observers, member->static_observers ) < 0 )
+            return 0;
     }
     Py_RETURN_NONE;
 }
@@ -168,14 +162,7 @@ Member_static_observers( Member* self )
 {
     if( !self->static_observers )
         return PyTuple_New( 0 );
-    std::vector<Observer>& observers( *self->static_observers );
-    size_t size = observers.size();
-    PyObject* items = PyTuple_New( size );
-    if( !items )
-        return 0;
-    for( size_t i = 0; i < size; ++i )
-        PyTuple_SET_ITEM( items, i, cppy::incref( observers[ i ].m_observer.get() ) );
-    return items;
+    return PyDict_Keys( self->static_observers );
 }
 
 
@@ -197,7 +184,8 @@ Member_add_static_observer( Member* self, PyObject*const *args, Py_ssize_t n)
             return cppy::type_error( types, "int" );
         change_types = PyLong_AsLong( types ) & 0xFF ;
     }
-    self->add_observer( observer, change_types );
+    if ( !self->add_observer( observer, change_types ) )
+        return 0;
     Py_RETURN_NONE;
 }
 
@@ -207,7 +195,8 @@ Member_remove_static_observer( Member* self, PyObject* observer )
 {
     if( !PyUnicode_CheckExact( observer ) && !PyCallable_Check( observer ) )
         return cppy::type_error( observer, "str or callable" );
-    self->remove_observer( observer );
+    if ( !self->remove_observer( observer ) )
+        return 0;
     Py_RETURN_NONE;
 }
 
@@ -404,10 +393,7 @@ Member_clone( Member* self )
     clone->post_validate_context = cppy::xincref( self->post_validate_context );
     clone->getstate_context = cppy::xincref( self->getstate_context );
     if( self->static_observers )
-    {
-        clone->static_observers = new std::vector<Observer>();
-        *clone->static_observers = *self->static_observers;
-    }
+        clone->static_observers = PyDict_Copy( self->static_observers );
     return pyclone;
 }
 
@@ -1024,72 +1010,60 @@ struct RemoveTask : public BaseTask
 bool Member::has_observers( uint8_t change_types )
 {
     if ( static_observers ) {
-        std::vector<Observer>::iterator it;
-        std::vector<Observer>::iterator end = static_observers->end();
-        for( it = static_observers->begin(); it != end; ++it )
+        PyObject *observer, *info;
+        Py_ssize_t pos = 0;
+        while ( PyDict_Next( static_observers, &pos, &observer, &info ) )
         {
-            if( it->enabled( change_types ) )
+            if ( matches_change( info, change_types ) )
                 return true;
         }
     }
     return false;
 }
 
-void
+bool
 Member::add_observer( PyObject* observer, uint8_t change_types )
 {
     if( modify_guard )
     {
         ModifyTask* task = new AddTask( this, observer, change_types );
         modify_guard->add_task( task );
-        return;
+        return true;
     }
+
+    if ( !PyObject_IsTrue(observer) )
+        return true; // Owner of method was deleted
+
     if( !static_observers )
-        static_observers = new std::vector<Observer>();
-    cppy::ptr obptr( cppy::incref( observer ) );
-    std::vector<Observer>::iterator it;
-    std::vector<Observer>::iterator end = static_observers->end();
-    for( it = static_observers->begin(); it != end; ++it )
     {
-        if( it->match( obptr ) )
-        {
-            it->m_change_types = change_types;
-            return;
-        }
+        static_observers = PyDict_New();
+        if ( !static_observers )
+            return false;
     }
-    static_observers->push_back( Observer(obptr, change_types) );
-    return;
+    cppy::ptr info( PyLong_FromLong(change_types) );
+    if ( !info )
+        return false;
+    return PyDict_SetItem( static_observers, observer, info.get() ) == 0;
 }
 
 
-void
+bool
 Member::remove_observer( PyObject* observer )
 {
     if( modify_guard )
     {
         ModifyTask* task = new RemoveTask( this, observer );
         modify_guard->add_task( task );
-        return;
+        return true;
     }
     if( static_observers )
     {
-        cppy::ptr obptr( cppy::incref( observer ) );
-        std::vector<Observer>::iterator it;
-        std::vector<Observer>::iterator end = static_observers->end();
-        for( it = static_observers->begin(); it != end; ++it )
-        {
-            if( it->match( obptr ) )
-            {
-                static_observers->erase( it );
-                if( static_observers->size() == 0 )
-                {
-                    delete static_observers;
-                    static_observers = 0;
-                }
-                break;
-            }
-        }
+        if ( PyDict_DelItem( static_observers, observer ) < 0 )
+            PyErr_Clear();
+        if ( !PyObject_IsTrue( static_observers ) )
+            Py_CLEAR(static_observers);
     }
+    return true;
 }
 
 
@@ -1098,17 +1072,11 @@ Member::has_observer( PyObject* observer, uint8_t change_types )
 {
     if( !static_observers )
         return false;
-    cppy::ptr obptr( cppy::incref( observer ) );
-    std::vector<Observer>::iterator it;
-    std::vector<Observer>::iterator end = static_observers->end();
-    for( it = static_observers->begin(); it != end; ++it )
-    {
-        if( it->match( obptr ) && it->enabled( change_types ))
-            return true;
-    }
-    return false;
+    PyObject* info = PyDict_GetItem( static_observers, observer );
+    if ( !info )
+        return false;
+    return matches_change(info, change_types);
 }
-
 
 bool
 Member::notify( CAtom* atom, PyObject* args, PyObject* kwargs, uint8_t change_types)
@@ -1116,30 +1084,28 @@ Member::notify( CAtom* atom, PyObject* args, PyObject* kwargs, uint8_t change_ty
     if( static_observers && atom->get_notifications_enabled() )
     {
         ModifyGuard<Member> guard( *this );
-        cppy::ptr argsptr( cppy::incref( args ) );
-        cppy::ptr kwargsptr( cppy::xincref( kwargs ) );
-        cppy::ptr objectptr( cppy::incref( pyobject_cast( atom ) ) );
-        cppy::ptr callable;
-        std::vector<Observer>::iterator it;
-        std::vector<Observer>::iterator end = static_observers->end();
-        for( it = static_observers->begin(); it != end; ++it )
+        PyObject *ok, *observer, *info;
+        Py_ssize_t pos = 0;
+        while ( PyDict_Next( static_observers, &pos, &observer, &info ) )
         {
-            if ( !it->enabled( change_types ) )
+            if ( !matches_change(info, change_types) )
                 continue;  // Ignore
 
-            if( PyUnicode_CheckExact( it->m_observer.get() ) )
+            if( PyUnicode_CheckExact( observer ) )
             {
-                callable = objectptr.getattr( it->m_observer );
+                PyObject* callable = PyObject_GetAttr( pyobject_cast( atom ), observer );
                 if( !callable )
                     return false;
+                ok = PyObject_Call( callable, args, kwargs );
+                Py_DECREF(callable);
             }
             else
             {
-                callable = it->m_observer;
+                ok = PyObject_Call( observer, args, kwargs );
             }
-            cppy::ptr ok( callable.call( argsptr, kwargsptr ) );
             if( !ok )
                 return false;
+            Py_DECREF(ok);
         }
     }
     return true;

@@ -18,6 +18,7 @@ struct MethodWrapper
 	PyObject_HEAD
     PyObject* im_func;
     PyObject* im_selfref;
+    Py_hash_t im_hash;
 
 	static PyType_Spec TypeObject_Spec;
 
@@ -40,6 +41,7 @@ struct AtomMethodWrapper
 {
 	PyObject_HEAD
     PyObject* im_func;
+    Py_hash_t im_hash;
     CAtomPointer pointer;  // constructed with placement new
 
 	static PyType_Spec TypeObject_Spec;

@@ -106,8 +106,7 @@ struct CAtom
     {
         if( observers )
         {
-            cppy::ptr topicptr( cppy::incref( topic ) );
-            return observers->has_topic( topicptr );
+            return observers->has_topic( topic );
         }
         return false;
     }
@@ -116,9 +115,7 @@ struct CAtom
     {
         if( observers )
         {
-            cppy::ptr topicptr( cppy::incref( topic ) );
-            cppy::ptr callbackptr( cppy::incref( callback ) );
-            return observers->has_observer( topicptr, callbackptr );
+            return observers->has_observer( topic, callback );
         }
         return false;
     }

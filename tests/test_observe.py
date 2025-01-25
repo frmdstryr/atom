@@ -6,7 +6,7 @@
 # The full license is in the file LICENSE, distributed with this software.
 # --------------------------------------------------------------------------------------
 """Test the notification mechanisms."""
-
+import sys
 import pytest
 
 from atom.api import (
@@ -83,6 +83,9 @@ def test_manual_static_observers(static_atom):
         def __eq__(self, other):
             raise ValueError()
 
+        def __hash__(self):
+            return hash(self.__call__)
+
         def __call__(self, change):
             change["object"].changes.append(change["name"])
 
@@ -95,11 +98,15 @@ def test_manual_static_observers(static_atom):
     assert not member.has_observers()
     static_atom.val2 += 1
     assert not static_atom.changes
+    assert sys.getrefcount(react) == 2
     member.add_static_observer(react)
+    assert sys.getrefcount(react) == 3
     assert member.has_observer(react)
+    assert sys.getrefcount(react) == 3
     static_atom.val2 += 1
     assert static_atom.changes
     member.remove_static_observer(react)
+    assert sys.getrefcount(react) == 2
     assert not member.has_observers()
 
     member.add_static_observer(react, ChangeType.UPDATE)
@@ -158,7 +165,9 @@ def test_static_observers_change_types(change_type, expected_types):
     def react(change):
         changes.append(change)
 
+    assert sys.getrefcount(react) == 2
     Widget.val.add_static_observer(react, change_type)
+    assert sys.getrefcount(react) == 3
     w = Widget()
     w.val
     w.val = 1
@@ -282,8 +291,11 @@ def test_observe_decorators():
         pass
 
     handler = observe(("val",))
+    assert sys.getrefcount(react) == 2
     handler(react)
+    assert sys.getrefcount(react) == 3
     handler_clone = handler.clone()
+    assert sys.getrefcount(react) == 4
     assert handler is not handler_clone
     assert handler.pairs == handler_clone.pairs
     assert handler.func is handler_clone.func
@@ -292,6 +304,9 @@ def test_observe_decorators():
         observe(12)
     with pytest.raises(TypeError):
         observe(["a.b.c"])
+
+    del handler_clone
+    assert sys.getrefcount(react) == 3
 
 
 # --- Dynamic observer manipulations
@@ -326,7 +341,11 @@ def test_single_observe():
     dt2 = DynamicAtom()
     observer = Observer()
 
+    assert sys.getrefcount(observer.react) == 2
+    assert sys.getrefcount(observer.react.__func__) == 4
     dt1.observe("val", observer.react)
+    assert sys.getrefcount(observer.react) == 2 # it creates a wrapper
+    assert sys.getrefcount(observer.react.__func__) == 5
     # Test creation in the absence of static observers
     dt1.val
     assert observer.count == 1
@@ -334,6 +353,10 @@ def test_single_observe():
     assert observer.count == 1
     del dt1.val
     assert observer.count == 2
+
+    dt1.unobserve("val", observer.react)
+    assert sys.getrefcount(observer.react) == 2 # it creates a wrapper
+    assert sys.getrefcount(observer.react.__func__) == 4
 
 
 def test_multiple_observe():
@@ -346,6 +369,29 @@ def test_multiple_observe():
     assert observer.count == 1
     dt1.val2 = 1
     assert observer.count == 2
+
+
+def test_observe_ref_counts():
+    """Test observer ref counts."""
+    dt1 = DynamicAtom()
+
+    def observer(change):
+        pass
+
+    assert sys.getrefcount(observer) == 2
+    dt1.observe(("val", "val2"), observer)
+    assert sys.getrefcount(observer) == 4
+    dt1.observe(("val", "val2"), observer)
+    assert sys.getrefcount(observer) == 4
+    dt1.val = 1
+    dt1.unobserve("val", observer)
+    assert sys.getrefcount(observer) == 3
+    dt1.unobserve()
+    assert sys.getrefcount(observer) == 2
+    dt1.observe(("val", "val2"), observer)
+    assert sys.getrefcount(observer) == 4
+    del dt1
+    assert sys.getrefcount(observer) == 2
 
 
 def test_observe_change_types():
@@ -551,6 +597,7 @@ def test_modifying_dynamic_observers_in_callback():
 
         def __init__(self, active):
             self.active = active
+            self.calls = 0
 
         def __bool__(self):
             return self.active
@@ -558,7 +605,7 @@ def test_modifying_dynamic_observers_in_callback():
         __nonzero__ = __bool__
 
         def __call__(self, change):
-            pass
+            self.calls += 1
 
     class ChangingAtom(Atom):
         val = Int()
@@ -593,9 +640,15 @@ def test_modifying_dynamic_observers_in_callback():
     assert ca.counter2 == 0
     assert ca.has_observer("val", ca.react2)
     assert not ca.has_observer("val", ca.react1)
-    assert not ca.has_observer("val", invalid_obs)
+    assert invalid_obs.calls == 1
 
     ca.val += 1
+
+    # When this gets removed depends on the order notifications fire
+    # It is should definitely be gone after the second update
+    assert not ca.has_observer("val", invalid_obs)
+    assert invalid_obs.calls == 1
+
     assert ca.counter2 == 1
     # Ensure the modification take place after notification dispatch is
     # complete

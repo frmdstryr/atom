@@ -102,10 +102,8 @@ CAtom_clear( CAtom* self )
     {
         Py_CLEAR( self->slots[ i ] );
     }
-    if( self->observers )
-    {
-        self->observers->py_clear();
-    }
+    delete self->observers;
+    self->observers = 0;
 }
 
 
@@ -582,14 +580,12 @@ wrap_callback( PyObject* callback )
 bool
 CAtom::observe( PyObject* topic, PyObject* callback, uint8_t change_types )
 {
-    cppy::ptr topicptr( cppy::incref( topic ) );
     cppy::ptr callbackptr( wrap_callback( callback ) );
     if( !callbackptr )
         return false;
     if( !observers )
         observers = new ObserverPool();
-    observers->add( topicptr, callbackptr, change_types );
-    return true;
+    return observers->add( topic, callbackptr.get(), change_types );
 }
 
 
@@ -598,10 +594,7 @@ CAtom::unobserve( PyObject* topic, PyObject* callback )
 {
     if( !observers )
         return true;
-    cppy::ptr topicptr( cppy::incref( topic ) );
-    cppy::ptr callbackptr( cppy::incref( callback ) );
-    observers->remove( topicptr, callbackptr );
-    return true;
+    return observers->remove( topic, callback );
 }
 
 
@@ -610,9 +603,7 @@ CAtom::unobserve( PyObject* topic )
 {
     if( !observers )
         return true;
-    cppy::ptr topicptr( cppy::incref( topic ) );
-    observers->remove( topicptr );
-    return true;
+    return observers->remove( topic );
 }
 
 
@@ -621,7 +612,7 @@ CAtom::unobserve()
 {
     if( !observers )
         return true;
-    observers->py_clear();
+    observers->clear();
     return true;
 }
 
@@ -631,10 +622,7 @@ CAtom::notify( PyObject* topic, PyObject* args, PyObject* kwargs, uint8_t change
 {
     if( observers && get_notifications_enabled() )
     {
-        cppy::ptr topicptr( cppy::incref( topic ) );
-        cppy::ptr argsptr( cppy::incref( args ) );
-        cppy::ptr kwargsptr( cppy::xincref( kwargs ) );
-        if( !observers->notify( topicptr, argsptr, kwargsptr, change_types ) )
+        if( !observers->notify( topic, args, kwargs, change_types ) )
             return false;
     }
     return true;

@@ -53,7 +53,7 @@ struct Member
     PyObject* post_validate_context;
     PyObject* getstate_context;
     ModifyGuard<Member>* modify_guard;
-    std::vector<Observer>* static_observers;
+    PyObject* static_observers; // dict[observer, change_types]
     MemberModes modes;
     uint32_t index;
 
@@ -179,7 +179,7 @@ struct Member
 
     bool has_observers()
     {
-        return static_observers && static_observers->size() > 0;
+        return static_observers && PyObject_IsTrue( static_observers );
     }
 
     bool has_observers( uint8_t change_types );
@@ -191,14 +191,14 @@ struct Member
 
     bool has_observer( PyObject* observer, uint8_t change_types );
 
-    void add_observer( PyObject* observer )
+    bool add_observer( PyObject* observer )
     {
         return add_observer( observer, ChangeType::Any );
     }
 
-    void add_observer( PyObject* observer, uint8_t change_types );
+    bool add_observer( PyObject* observer, uint8_t change_types );
 
-    void remove_observer( PyObject* observer );
+    bool remove_observer( PyObject* observer );
 
     bool notify( CAtom* atom, PyObject* args, PyObject* kwargs )
     {
