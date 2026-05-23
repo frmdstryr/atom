@@ -123,6 +123,7 @@ enum Mode: uint8_t
 {
     NoOp,
     Bool,
+    BoolPromote,
     Int,
     IntPromote,
     Float,

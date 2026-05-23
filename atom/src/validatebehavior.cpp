@@ -337,6 +337,22 @@ bool_handler( Member* member, CAtom* atom, PyObject* oldvalue, PyObject* newvalu
 
 
 PyObject*
+bool_promote_handler( Member* member, CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
+{
+    switch ( PyObject_IsTrue( newvalue ) )
+    {
+        case 0:
+            Py_RETURN_FALSE;
+        case 1:
+            Py_RETURN_TRUE;
+        default:
+            return 0;
+    }
+
+}
+
+
+PyObject*
 long_handler( Member* member, CAtom* atom, PyObject* oldvalue, PyObject* newvalue )
 {
     if( PyLong_Check( newvalue ) )
@@ -982,6 +998,7 @@ static handler
 handlers[] = {
     no_op_handler,
     bool_handler,
+    bool_promote_handler,
     long_handler,
     long_promote_handler,
     float_handler,

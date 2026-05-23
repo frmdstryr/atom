@@ -82,13 +82,21 @@ class Callable(Value):
 
 
 class Bool(Value):
-    """A value of type `bool`."""
+    """A value of type `bool`.
+
+    By default, bools are strictly typed.  Pass strict=False to the
+    constructor to use the result truthyness of the value (eg bool(value)).
+
+    """
 
     __slots__ = ()
 
-    def __init__(self, default=False, *, factory=None):
+    def __init__(self, default=False, *, factory=None, strict=True):
         super(Bool, self).__init__(default, factory=factory)
-        self.set_validate_mode(Validate.Bool, None)
+        if strict:
+            self.set_validate_mode(Validate.Bool, None)
+        else:
+            self.set_validate_mode(Validate.BoolPromote, None)
 
 
 class Int(Value):
