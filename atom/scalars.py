@@ -85,7 +85,7 @@ class Bool(Value):
     """A value of type `bool`.
 
     By default, bools are strictly typed.  Pass strict=False to the
-    constructor to use the result truthyness of the value (eg bool(value)).
+    constructor to use the truthyness of the value (eg bool(value)).
 
     """
 

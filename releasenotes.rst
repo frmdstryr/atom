@@ -1,6 +1,11 @@
 Atom Release Notes
 ==================
 
+0.12.2 - Unreleased
+-------------------
+
+- add strict argument to the Bool member to allow coercion
+
 0.12.1 - 02/10/2025
 -------------------
 
