@@ -9,6 +9,7 @@
 
 no_op_handler
 bool_handler
+bool_promote_handler
 int_handler
 int_promote_handler
 long_handler
@@ -99,6 +100,12 @@ def c(x: object) -> int:
         (Value(), ["a", 1, None], ["a", 1, None], []),
         (ReadOnly(int), [1], [1], [1.0]),
         (Bool(), [True, False], [True, False], "r"),
+        (
+            Bool(strict=False),
+            [True, False, 1, 0, None, "y", ""],
+            [True, False, True, False, False, True, False],
+            [],
+        ),
         (Int(strict=True), [1], [1], [1.0]),
         (Int(strict=False), [1, 1.0, (1)], 3 * [1], ["a"]),
         (Range(0, 2), [0, 2], [0, 2], [-1, 3, ""]),

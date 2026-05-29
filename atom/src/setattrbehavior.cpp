@@ -100,7 +100,7 @@ updated_args( CAtom* atom, Member* member, PyObject* oldvalue, PyObject* newvalu
 int
 slot_handler( Member* member, CAtom* atom, PyObject* value )
 {
-    if( member->index >= atom->get_slot_count() )
+    if( member->info.index >= atom->get_slot_count() )
     {
         cppy::attribute_error( pyobject_cast( atom ), (char *)PyUnicode_AsUTF8( member->name ) );
         return -1;
@@ -110,7 +110,7 @@ slot_handler( Member* member, CAtom* atom, PyObject* value )
         PyErr_SetString( PyExc_AttributeError, "can't set attribute of frozen Atom" );
         return -1;
     }
-    cppy::ptr oldptr( atom->get_slot( member->index ) );
+    cppy::ptr oldptr( atom->get_slot( member->info.index ) );
     cppy::ptr newptr( cppy::incref( value ) );
     if( oldptr == newptr )
         return 0;
@@ -120,7 +120,7 @@ slot_handler( Member* member, CAtom* atom, PyObject* value )
     newptr = member->full_validate( atom, oldptr.get(), newptr.get() );
     if( !newptr )
         return -1;
-    atom->set_slot( member->index, newptr.get() );
+    atom->set_slot( member->info.index, newptr.get() );
     if( member->get_post_setattr_mode() )
     {
         if( member->post_setattr( atom, oldptr.get(), newptr.get() ) < 0 )
@@ -183,12 +183,12 @@ constant_handler( Member* member, CAtom* atom, PyObject* value )
 int
 read_only_handler( Member* member, CAtom* atom, PyObject* value )
 {
-    if( member->index >= atom->get_slot_count() )
+    if( member->info.index >= atom->get_slot_count() )
     {
         cppy::attribute_error( pyobject_cast( atom ), (char *)PyUnicode_AsUTF8( member->name ) );
         return -1;
     }
-    cppy::ptr slot( atom->get_slot( member->index ) );
+    cppy::ptr slot( atom->get_slot( member->info.index ) );
     if( slot )
     {
         cppy::type_error( "cannot change the value of a read only member" );

@@ -25,17 +25,19 @@
 namespace atom
 {
 
-PACK(struct MemberModes
+PACK(struct MemberInfo
 {
     GetAttr::Mode getattr: 4;
     PostGetAttr::Mode post_getattr: 3;
     SetAttr::Mode setattr: 4;
     PostSetAttr::Mode post_setattr: 3;
     DefaultValue::Mode default_value: 4;
-    Validate::Mode validate: 5;
+    Validate::Mode validate: 6;
     PostValidate::Mode post_validate: 3;
     DelAttr::Mode delattr: 3;
     GetState::Mode getstate: 3;
+    uint16_t index: 16;
+    uint16_t reserved: 15;
 });
 
 struct Member
@@ -54,8 +56,7 @@ struct Member
     PyObject* getstate_context;
     ModifyGuard<Member>* modify_guard;
     std::vector<Observer>* static_observers;
-    MemberModes modes;
-    uint32_t index;
+    MemberInfo info;
 
     static PyType_Spec TypeObject_Spec;
 
@@ -69,92 +70,92 @@ struct Member
 
     GetAttr::Mode get_getattr_mode()
     {
-        return modes.getattr;
+        return info.getattr;
     }
 
     void set_getattr_mode( GetAttr::Mode mode )
     {
-        modes.getattr = mode;
+        info.getattr = mode;
     }
 
     SetAttr::Mode get_setattr_mode()
     {
-        return modes.setattr;
+        return info.setattr;
     }
 
     void set_setattr_mode( SetAttr::Mode mode )
     {
-        modes.setattr = mode;
+        info.setattr = mode;
     }
 
     PostGetAttr::Mode get_post_getattr_mode()
     {
-        return modes.post_getattr;
+        return info.post_getattr;
     }
 
     void set_post_getattr_mode( PostGetAttr::Mode mode )
     {
-        modes.post_getattr = mode;
+        info.post_getattr = mode;
     }
 
     PostSetAttr::Mode get_post_setattr_mode()
     {
-        return modes.post_setattr;
+        return info.post_setattr;
     }
 
     void set_post_setattr_mode( PostSetAttr::Mode mode )
     {
-        modes.post_setattr = mode;
+        info.post_setattr = mode;
     }
 
     DefaultValue::Mode get_default_value_mode()
     {
-        return modes.default_value;
+        return info.default_value;
     }
 
     void set_default_value_mode( DefaultValue::Mode mode )
     {
-        modes.default_value = mode;
+        info.default_value = mode;
     }
 
     Validate::Mode get_validate_mode()
     {
-        return modes.validate;
+        return info.validate;
     }
 
     void set_validate_mode( Validate::Mode mode )
     {
-        modes.validate = mode;
+        info.validate = mode;
     }
 
     PostValidate::Mode get_post_validate_mode()
     {
-        return modes.post_validate;
+        return info.post_validate;
     }
 
     void set_post_validate_mode( PostValidate::Mode mode )
     {
-        modes.post_validate = mode;
+        info.post_validate = mode;
     }
 
     DelAttr::Mode get_delattr_mode()
     {
-        return modes.delattr;
+        return info.delattr;
     }
 
     void set_delattr_mode( DelAttr::Mode mode )
     {
-        modes.delattr = mode;
+        info.delattr = mode;
     }
 
     GetState::Mode get_getstate_mode()
     {
-        return modes.getstate;
+        return info.getstate;
     }
 
     void set_getstate_mode( GetState::Mode mode )
     {
-        modes.getstate = mode;
+        info.getstate = mode;
     }
 
     PyObject* getattr( CAtom* atom );

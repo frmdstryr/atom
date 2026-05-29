@@ -87,9 +87,9 @@ created_args( CAtom* atom, Member* member, PyObject* value )
 PyObject*
 slot_handler( Member* member, CAtom* atom )
 {
-    if( member->index >= atom->get_slot_count() )
+    if( member->info.index >= atom->get_slot_count() )
         return cppy::attribute_error( pyobject_cast( atom ), (char const *)PyUnicode_AsUTF8( member->name ) );
-    cppy::ptr value( atom->get_slot( member->index ) );
+    cppy::ptr value( atom->get_slot( member->info.index ) );
     if( value )
     {
         if( member->get_post_getattr_mode() )
@@ -102,7 +102,7 @@ slot_handler( Member* member, CAtom* atom )
     value = member->full_validate( atom, Py_None, value.get() );
     if( !value )
         return 0;
-    atom->set_slot( member->index, value.get() );
+    atom->set_slot( member->info.index, value.get() );
     if( atom->get_notifications_enabled() )
     {
         cppy::ptr argsptr;
@@ -179,11 +179,11 @@ property_handler( Member* member, CAtom* atom )
 PyObject*
 cached_property_handler( Member* member, CAtom* atom )
 {
-    cppy::ptr value( atom->get_slot( member->index ) );
+    cppy::ptr value( atom->get_slot( member->info.index ) );
     if( value )
         return value.release();
     value = property_handler( member, atom );
-    atom->set_slot( member->index, value.get() );  // exception-safe
+    atom->set_slot( member->info.index, value.get() );  // exception-safe
     return value.release();
 }
 

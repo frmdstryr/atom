@@ -61,12 +61,12 @@ reset_property( PyObject* mod, PyObject* args )
     }
     Member* member = member_cast( pymember );
     CAtom* atom = catom_cast( pyatom );
-    if( member->index >= atom->get_slot_count() )
+    if( member->info.index >= atom->get_slot_count() )
     {
         return cppy::system_error( "invalid member index" );
     }
-    cppy::ptr oldptr( atom->get_slot( member->index ) );
-    atom->set_slot( member->index, 0 );
+    cppy::ptr oldptr( atom->get_slot( member->info.index ) );
+    atom->set_slot( member->info.index, 0 );
     bool has_static = member->has_observers( ChangeType::Property );
     bool has_dynamic = atom->has_observers( member->name );
     if( has_static || has_dynamic )

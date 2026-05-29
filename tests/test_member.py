@@ -150,6 +150,13 @@ def test_managing_slot_index():
         IndexTest.v1.set_index("")
     assert "int" in excinfo.exconly()
 
+    with pytest.raises(TypeError) as excinfo:
+        IndexTest.v1.set_index(-1)
+    assert "range 0 to 0xFFFF" in excinfo.exconly()
+    with pytest.raises(TypeError) as excinfo:
+        IndexTest.v1.set_index(2**16)
+    assert "range 0 to 0xFFFF" in excinfo.exconly()
+
 
 def test_metadata_handling():
     """Test writing and accessing the metadata of a Member."""

@@ -219,9 +219,9 @@ Member_get_slot( Member* self, PyObject* object )
     if( !CAtom::TypeCheck( object ) )
         return cppy::type_error( object, "CAtom" );
     CAtom* atom = catom_cast( object );
-    if( self->index >= atom->get_slot_count() )
+    if( self->info.index >= atom->get_slot_count() )
         return cppy::attribute_error( object, (char *)PyUnicode_AsUTF8( self->name ) );
-    cppy::ptr value( atom->get_slot( self->index ) );
+    cppy::ptr value( atom->get_slot( self->info.index ) );
     if( value )
         return value.release();
     Py_RETURN_NONE;
@@ -238,9 +238,9 @@ Member_set_slot( Member* self, PyObject*const *args, Py_ssize_t n )
     if( !CAtom::TypeCheck( object ) )
         return cppy::type_error( object, "CAtom" );
     CAtom* atom = catom_cast( object );
-    if( self->index >= atom->get_slot_count() )
+    if( self->info.index >= atom->get_slot_count() )
         return cppy::attribute_error( object, (char *)PyUnicode_AsUTF8( self->name ) );
-    atom->set_slot( self->index, value );
+    atom->set_slot( self->info.index, value );
     Py_RETURN_NONE;
 }
 
@@ -251,9 +251,9 @@ Member_del_slot( Member* self, PyObject* object )
     if( !CAtom::TypeCheck( object ) )
         return cppy::type_error( object, "CAtom" );
     CAtom* atom = catom_cast( object );
-    if( self->index >= atom->get_slot_count() )
+    if( self->info.index >= atom->get_slot_count() )
         return cppy::attribute_error( object, (char *)PyUnicode_AsUTF8( self->name ) );
-    atom->set_slot( self->index, 0 );
+    atom->set_slot( self->info.index, 0 );
     Py_RETURN_NONE;
 }
 
@@ -390,8 +390,7 @@ Member_clone( Member* self )
     if( !pyclone )
         return 0;
     Member* clone = member_cast( pyclone );
-    clone->modes = self->modes;
-    clone->index = self->index;
+    clone->info = self->info;
     clone->name = cppy::incref( self->name );
     if( self->metadata )
         clone->metadata = PyDict_Copy( self->metadata );
@@ -437,7 +436,7 @@ Member_set_name( Member* self, PyObject* value )
 PyObject*
 Member_get_index( Member* self, void* context )
 {
-    return PyLong_FromSsize_t( static_cast<Py_ssize_t>( self->index ) );
+    return PyLong_FromSsize_t( static_cast<Py_ssize_t>( self->info.index ) );
 }
 
 
@@ -449,7 +448,9 @@ Member_set_index( Member* self, PyObject* value )
     Py_ssize_t index = PyLong_AsSsize_t( value );
     if( index < 0 && PyErr_Occurred() )
         return 0;
-    self->index = static_cast<uint32_t>( index < 0 ? 0 : index );
+    if ( index < 0 || index >= 0xFFFF )
+        return cppy::type_error("index must be in the range 0 to 0xFFFF ");
+    self->info.index = static_cast<uint16_t>( index );
     Py_RETURN_NONE;
 }
 

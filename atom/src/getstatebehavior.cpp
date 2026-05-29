@@ -53,10 +53,10 @@ include_handler( Member* member, CAtom* atom )
 PyObject*
 include_non_default_handler( Member* member, CAtom* atom )
 {
-    if( member->index >= atom->get_slot_count() ) {
+    if( member->info.index >= atom->get_slot_count() ) {
         return cppy::attribute_error( pyobject_cast( atom ), (char const *)PyUnicode_AsUTF8( member->name ) );
     }
-    cppy::ptr value( atom->get_slot( member->index ) );
+    cppy::ptr value( atom->get_slot( member->info.index ) );
     if( value ) {
         return cppy::incref( Py_True );
     }
